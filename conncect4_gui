@@ -1,0 +1,198 @@
+import pygame
+import copy
+
+# Game constants
+EMPTY = '-'
+PLAYER_X = 'X'
+PLAYER_O = 'O'
+ROWS = 6
+COLS = 7
+
+# Colors
+BLACK = (0, 0, 0)
+BLUE = (0, 0, 255)
+RED = (255, 0, 0)
+YELLOW = (255, 255, 0)
+
+# Initialize the board
+def create_board():
+    return [[EMPTY] * COLS for _ in range(ROWS)]
+
+# Check if a player has won the game
+def has_won(board, player):
+    # Check rows
+    for row in board:
+        for col in range(COLS - 3):
+            if row[col] == row[col + 1] == row[col + 2] == row[col + 3] == player:
+                return True
+
+    # Check columns
+    for col in range(COLS):
+        for row in range(ROWS - 3):
+            if board[row][col] == board[row + 1][col] == board[row + 2][col] == board[row + 3][col] == player:
+                return True
+
+    # Check diagonals
+    for row in range(ROWS - 3):
+        for col in range(COLS - 3):
+            if (
+                board[row][col] == board[row + 1][col + 1] == board[row + 2][col + 2] == board[row + 3][col + 3]
+                == player
+            ):
+                return True
+            if (
+                board[row + 3][col] == board[row + 2][col + 1] == board[row + 1][col + 2] == board[row][col + 3]
+                == player
+            ):
+                return True
+
+    return False
+
+# Check if the board is full
+def is_board_full(board):
+    for row in board:
+        if EMPTY in row:
+            return False
+    return True
+
+# Initialize the Pygame display
+def initialize_display():
+    pygame.init()
+    screen = pygame.display.set_mode((700, 600))
+    pygame.display.set_caption("Connect Four")
+    return screen
+
+# Draw the board on the Pygame display
+def draw_board(screen, board):
+    screen.fill(BLACK)
+
+    for row in range(ROWS):
+        for col in range(COLS):
+            pygame.draw.rect(screen, BLUE, (col * 100, row * 100 + 100, 100, 100))
+            pygame.draw.circle(screen, BLACK, (col * 100 + 50, row * 100 + 150), 45)
+
+            if board[row][col] == PLAYER_X:
+                pygame.draw.circle(screen, RED, (col * 100 + 50, row * 100 + 150), 45)
+            elif board[row][col] == PLAYER_O:
+                pygame.draw.circle(screen, YELLOW, (col * 100 + 50, row * 100 + 150), 45)
+
+    pygame.display.update()
+def get_possible_actions(board):
+    actions = []
+    for col in range(COLS):
+        if board[0][col] == EMPTY:
+            actions.append(col)
+    return actions
+# Get the column number based on the mouse position
+def get_column_from_mouse_pos(pos):
+    x = pos[0]
+    return x // 100
+
+# Make a move in the board
+def make_move(board, action, player):
+    for row in range(ROWS - 1, -1, -1):
+        if board[row][action] == EMPTY:
+            board[row][action] = player
+            break
+
+# Minimax algorithm with Alpha-Beta pruning
+def minimax(board, depth, alpha, beta, maximizing_player):
+    if depth == 0 or has_won(board, PLAYER_X) or has_won(board, PLAYER_O) or is_board_full(board):
+        # Calculate the score for the leaf node
+        if has_won(board, PLAYER_X):
+            return 1
+        elif has_won(board, PLAYER_O):
+            return -1
+        else:
+            return 0
+
+    if maximizing_player:
+        max_eval = float('-inf')
+        for action in get_possible_actions(board):
+            new_board = copy.deepcopy(board)
+            make_move(new_board, action, PLAYER_X)
+            eval = minimax(new_board, depth - 1, alpha, beta, False)
+            max_eval = max(max_eval, eval)
+            alpha = max(alpha, eval)
+            if beta <= alpha:
+                break
+        return max_eval
+    else:
+        min_eval = float('inf')
+        for action in get_possible_actions(board):
+            new_board = copy.deepcopy(board)
+            make_move(new_board, action, PLAYER_O)
+            eval = minimax(new_board, depth - 1, alpha, beta, True)
+            min_eval = min(min_eval, eval)
+            beta = min(beta, eval)
+            if beta <= alpha:
+                break
+        return min_eval
+
+# Find the best move for the AI agent using Minimax with Alpha-Beta pruning
+def find_best_move(board):
+    best_move = None
+    best_eval = float('-inf')
+    alpha = float('-inf')
+    beta = float('inf')
+    for action in get_possible_actions(board):
+        new_board = copy.deepcopy(board)
+        make_move(new_board, action, PLAYER_X)
+        eval = minimax(new_board, 5, alpha, beta, False)  # Adjust the depth here
+        if eval > best_eval:
+            best_eval = eval
+            best_move = action
+    return best_move
+
+# Main game loop
+def play_game():
+    board = create_board()
+    current_player = PLAYER_X
+    screen = initialize_display()
+
+    while True:
+        draw_board(screen, board)
+
+        if current_player == PLAYER_X:
+            # Human's turn
+            valid_input = False
+            while not valid_input:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        pygame.quit()
+                        return
+
+                    if event.type == pygame.MOUSEBUTTONDOWN:
+                        column = get_column_from_mouse_pos(pygame.mouse.get_pos())
+                        if column in get_possible_actions(board):
+                            valid_input = True
+                            make_move(board, column, current_player)
+                            break
+
+        else:
+            # AI agent's turn
+            column = find_best_move(board)
+            make_move(board, column, current_player)
+
+        if has_won(board, current_player):
+            draw_board(screen, board)
+            pygame.time.wait(500)  # Delay for visual effect
+            print(f"Player {current_player} wins!")
+            pygame.quit()
+            return
+        elif is_board_full(board):
+            draw_board(screen, board)
+            pygame.time.wait(500)  # Delay for visual effect
+            print("It's a draw!")
+            pygame.quit()
+            return
+
+        current_player = PLAYER_O if current_player == PLAYER_X else PLAYER_X
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                return
+
+# Start the game
+play_game()
